@@ -53,7 +53,7 @@ namespace Tcp.Tests
             var packetPayloadMatch = false;
             var packet = new SamplePacket(100);
 
-            server.OnPacketReceived += (p) =>
+            server.OnPacketReceived += (_, p) =>
             {
                 packetReceived = true;
                 packetPayloadMatch = Encoding.UTF8.GetString(p.Payload.Memory.Span) == packet.Payload;
@@ -86,7 +86,7 @@ namespace Tcp.Tests
             var server = new Server();
             var packetReceived = false;
 
-            server.OnPacketReceived += (p) =>
+            server.OnPacketReceived += (_, _) =>
             {
                 packetReceived = true;
             };

@@ -49,7 +49,7 @@ namespace Tcp.Tests
         {
             var sessionCredentialValidator = new TestCredentialValidator();
             
-            var endPoint = IPEndPoint.Parse("0.0.0.0:8100");
+            var endPoint = IPEndPoint.Parse("0.0.0.0:8101");
             
             ConfigurationProvider.SetTcpConfig(new TcpConfig(endPoint, true, sessionCredentialValidator));
         
@@ -69,7 +69,7 @@ namespace Tcp.Tests
 
             stream.Write(authenticationPacket.Payload);
             
-            await Task.Delay(10000);
+            await Task.Delay(100);
             
             Assert.False(server.Session.Any());
         }

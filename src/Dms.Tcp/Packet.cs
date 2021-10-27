@@ -12,6 +12,9 @@ namespace Dms.Tcp
     {
         public DisposableBuffer Payload { get; init; }
         public bool IsMalformed { get; init; }
+        
+        public Memory<byte> Type => Payload.Memory.Slice(0, 6);
+        public Guid Id => new Guid(Payload.Memory.Slice(7, 17).Span);
 
         public static async ValueTask<Packet> ReadFromStreamAsync(Stream stream, CancellationToken cancellationToken)
         {

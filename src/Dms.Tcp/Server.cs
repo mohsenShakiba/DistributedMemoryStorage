@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,6 +10,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Dms.Tcp
 {
+    /// <summary>
+    /// Server will listen to incoming tcp connections
+    /// </summary>
     public class Server: IAsyncDisposable
     {
         private readonly CancellationTokenSource _cancellationSource;
@@ -19,7 +23,7 @@ namespace Dms.Tcp
 
         private Task _acceptTask;
 
-        public event Action<Packet> OnPacketReceived;
+        public event Action<Session, Packet> OnPacketReceived;
 
         public IEnumerable<Session> Session => _sessions.AsReadOnly();
 
@@ -32,6 +36,9 @@ namespace Dms.Tcp
             _cancellationSource = new CancellationTokenSource();
         }
 
+        /// <summary>
+        /// Will start a task that accepts incoming connections
+        /// </summary>
         public void Start()
         {
             _acceptTask = Task.Run(StartInternalAsync);
@@ -50,8 +57,8 @@ namespace Dms.Tcp
                     var session = new Session(tcpClient);
                     
                     _sessions.Add(session);
-                    
-                    _logger.LogInformation($"Accepted connection from end point: {tcpClient.Client.RemoteEndPoint}");
+
+                    _logger.LogInformation($"Accepted connection from end point: {tcpClient.Client.RemoteEndPoint} now waiting for session authentication");
 
                     session.OnPacketReceived += OnPacketReceivedInternal;
                     session.OnClosed += OnSessionClosedInternal;
@@ -67,18 +74,13 @@ namespace Dms.Tcp
 
         private void OnPacketReceivedInternal(Session session, Packet packet)
         {
-            OnPacketReceived?.Invoke(packet);
+            OnPacketReceived?.Invoke(session, packet);
         }
 
         private void OnSessionClosedInternal(Session session)
         {
-            if (_sessions.Contains(session))
-            {
-                _sessions.Remove(session);
-                
-                // note: no need to called dispose on session, if it's closed
-                // then it's already disposed too
-            }
+            Debug.Assert(_sessions.Contains(session));
+            _sessions.Remove(session);
         }
 
         public async ValueTask DisposeAsync()

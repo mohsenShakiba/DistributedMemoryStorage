@@ -99,35 +99,31 @@ namespace Dms.Tcp
         {
             var config = ConfigurationProvider.GetTcpConfig();
             
-            // if authentication isn't required we ignore the authentication phase
-            if (!config.EnableAuthentication)
+            if (config.EnableAuthentication)
             {
-                _isAuthenticated = true;
-                return;
-            }
-            
-            var stream = _client.GetStream();
+                var stream = _client.GetStream();
                 
-            using var packet = await Packet.ReadFromStreamAsync(stream, _cancellationSource.Token);
+                using var packet = await Packet.ReadFromStreamAsync(stream, _cancellationSource.Token);
 
-            if (packet.IsMalformed)
-            {
-                _logger.LogWarning($"Malformed credential was provided for session with id: {_id}");
-                await CloseAsync();
-                return;
-            }
+                if (packet.IsMalformed)
+                {
+                    _logger.LogWarning($"Malformed credential was provided for session with id: {_id}");
+                    await CloseAsync();
+                    return;
+                }
 
-            var credentials = Encoding.UTF8.GetString(packet.Payload.Memory.Span);
+                var credentials = Encoding.UTF8.GetString(packet.Payload.Memory.Span);
 
-            var validator = config.SessionCredentialValidator;
+                var validator = config.SessionCredentialValidator;
 
-            var credentialIsValid = await validator.ValidateCredential(credentials);
+                var credentialIsValid = await validator.ValidateCredential(credentials);
 
-            if (!credentialIsValid)
-            {
-                _logger.LogWarning($"Invalid credential was provided for session with id: {_id}");
-                await CloseAsync();
-                return;
+                if (!credentialIsValid)
+                {
+                    _logger.LogWarning($"Invalid credential was provided for session with id: {_id}");
+                    await CloseAsync();
+                    return;
+                }
             }
 
             _logger.LogInformation($"Authentication completed for session with id: {_id}");

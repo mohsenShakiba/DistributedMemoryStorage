@@ -5,7 +5,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Dms.Tcp\Dms.Tcp.csproj" />
+      <ProjectReference Include="..\Dms.Common\Dms.Common.csproj" />
     </ItemGroup>
 
 </Project>
