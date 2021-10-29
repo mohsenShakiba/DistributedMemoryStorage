@@ -1,7 +1,8 @@
 using System;
 using System.Buffers;
+using System.Diagnostics;
 
-namespace Dms.Common.Buffers
+namespace Dms.Common.Binary
 {
     /// <summary>
     /// Represents a block of memory that can be disposed, this object makes it easier to
@@ -18,6 +19,11 @@ namespace Dms.Common.Buffers
 
         public DisposableBuffer(int buffLength)
         {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(DisposableBuffer));
+            }
+            
             _buff = ArrayPool<byte>.Shared.Rent(buffLength);
             Length = buffLength;
         }

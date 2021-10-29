@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Dms.Common.Logging;
 using Dms.Core.Commands;
 using Dms.Core.Types;
+using Dms.Storage;
 using Dms.Tcp;
 using Microsoft.Extensions.Logging;
 
@@ -14,6 +15,7 @@ namespace Dms.Core
         private readonly Server _server;
         private readonly ILogger<Kernel> _logger;
         private readonly CommandRouter _router;
+        private readonly IStorage _storage;
         
 
         public Kernel()

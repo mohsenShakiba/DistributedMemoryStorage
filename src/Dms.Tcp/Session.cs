@@ -59,7 +59,7 @@ namespace Dms.Tcp
             });
         }
 
-        public ValueTask SendAsync(byte[] payload)
+        public ValueTask SendAsync(Memory<byte> payload)
         {
             if (_cancellationSource.IsCancellationRequested)
             {

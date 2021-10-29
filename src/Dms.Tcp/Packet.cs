@@ -4,7 +4,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Dms.Common.Buffers;
+using Dms.Common.Binary;
 
 namespace Dms.Tcp
 {
