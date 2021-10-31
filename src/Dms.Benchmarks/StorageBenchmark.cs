@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
+using Dms.Common.Configurations;
 using Dms.Storage;
 
 namespace Dms.Benchmarks
@@ -14,15 +15,19 @@ namespace Dms.Benchmarks
 
         public StorageBenchmark()
         {
-            var path1 = $"/home/m.shakiba/Desktop/{Guid.NewGuid().ToString()}";
-            
+            var config = new StorageConfig
+            {
+                VacuumThreshold = 0.9f,
+                DbFilePath = Path.Join(Path.GetTempPath(), Guid.NewGuid().ToString()),
+                VacuumPeriodInMinutes = 1
+            };
+
             _sampleKey = Guid.NewGuid().ToString();
             _sampleValue = Guid.NewGuid().ToByteArray();
 
-            _storage = new FileStorage(path1);
-            
+            _storage = new FileStorage(config);
+
             _storage.InitializeAsync().GetAwaiter().GetResult();
-            
         }
 
         [Benchmark]
@@ -30,8 +35,8 @@ namespace Dms.Benchmarks
         {
             await _storage.WriteAsync(_sampleKey, _sampleValue);
         }
-        
-        
+
+
         [Benchmark]
         public async Task Read()
         {

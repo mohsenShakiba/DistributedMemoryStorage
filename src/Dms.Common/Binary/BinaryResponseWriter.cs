@@ -22,6 +22,7 @@ namespace Dms.Common.Binary
         private Span<byte> PayloadBuffer => _buffer.Memory.Span.Slice(_offset);
 
         public Memory<byte> Buffer => _buffer.Memory;
+        public DisposableBuffer DisposableBuffer => _buffer;
 
         public BinaryResponseWriter(int sizeRequired)
         {
@@ -33,6 +34,13 @@ namespace Dms.Common.Binary
             _assertBytesAvailability = true;
         }
 
+        public void WriteType(RequestTypes type)
+        {
+            AssertEnoughBytesAreAvailable(Protocol.RequestTypeSize);
+            BitConverter.TryWriteBytes(PayloadBuffer, (short)type);
+            _offset += Protocol.RequestTypeSize;
+        }
+        
         public void WriteType(ResponseTypes type)
         {
             AssertEnoughBytesAreAvailable(Protocol.RequestTypeSize);
@@ -51,6 +59,10 @@ namespace Dms.Common.Binary
         public void WriteMemory(Memory<byte> mem)
         {
             AssertEnoughBytesAreAvailable(mem.Length);
+            
+            BitConverter.TryWriteBytes(PayloadBuffer, mem.Length);
+            _offset += Protocol.KeySize;
+            
             mem.Span.CopyTo(PayloadBuffer);
             _offset += mem.Length;
         }
@@ -59,6 +71,10 @@ namespace Dms.Common.Binary
         {
             var size = Encoding.UTF8.GetByteCount(str);
             AssertEnoughBytesAreAvailable(size);
+            
+            BitConverter.TryWriteBytes(PayloadBuffer, size);
+            _offset += Protocol.KeySize;
+            
             Encoding.UTF8.GetBytes(str, PayloadBuffer);
             _offset += size;
         }

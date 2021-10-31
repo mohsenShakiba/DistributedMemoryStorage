@@ -8,134 +8,133 @@ using Dms.Common.Configurations;
 using Dms.Common.Logging;
 using Microsoft.Extensions.Logging;
 
-namespace Dms.Tcp
+namespace Dms.Tcp;
+
+public class Session: ISession
 {
-    public class Session: IAsyncDisposable
+    private readonly Guid _id;
+    private readonly TcpClient _client;
+    private readonly ILogger<Session> _logger;
+    private readonly CancellationTokenSource _cancellationSource;
+        
+    private bool _isAuthenticated = false;
+
+    public event Action<Session, Packet> OnPacketReceived;
+    public event Action<Session> OnClosed;
+
+    public bool IsAuthenticated => _isAuthenticated;
+        
+    public Session(TcpClient client)
     {
-        private readonly Guid _id;
-        private readonly TcpClient _client;
-        private readonly ILogger<Session> _logger;
-        private readonly CancellationTokenSource _cancellationSource;
+        _id = Guid.NewGuid();
+        _client = client;
+        _logger = LogProvider.GetLogger<Session>();
+        _cancellationSource = new();
+    }
         
-        private bool _isAuthenticated = false;
-
-        public event Action<Session, Packet> OnPacketReceived;
-        public event Action<Session> OnClosed;
-
-        public bool IsAuthenticated => _isAuthenticated;
-        
-        public Session(TcpClient client)
-        {
-            _id = Guid.NewGuid();
-            _client = client;
-            _logger = LogProvider.GetLogger<Session>();
-            _cancellationSource = new();
-        }
-        
-        public ValueTask DisposeAsync()
-        {
-            _logger.LogInformation($"Stopping session with id: {_id}");
+    public ValueTask DisposeAsync()
+    {
+        _logger.LogInformation($"Stopping session with id: {_id}");
             
-            _cancellationSource.Cancel();
+        _cancellationSource.Cancel();
             
-            _client.Dispose();
+        _client.Dispose();
             
-            return ValueTask.CompletedTask;
-        }
+        return ValueTask.CompletedTask;
+    }
 
-        public void HandlePackets()
+    public void HandlePackets()
+    {
+        Task.Run(async () =>
         {
-            Task.Run(async () =>
+            try
             {
-                try
-                {
-                    await HandlerPacketsInternalAsync();
-                }
-                catch (Exception e)
-                {
-                    _logger.LogError($"Exception while handling packets in session: {_id}, exception: {e}");
-                    await CloseAsync();
-                }
-            });
-        }
-
-        public ValueTask SendAsync(Memory<byte> payload)
-        {
-            if (_cancellationSource.IsCancellationRequested)
-            {
-                throw new ObjectDisposedException(nameof(Session));
+                await HandlerPacketsInternalAsync();
             }
+            catch (Exception e)
+            {
+                _logger.LogError($"Exception while handling packets in session: {_id}, exception: {e}");
+                await CloseAsync();
+            }
+        });
+    }
+
+    public ValueTask SendAsync(Memory<byte> payload)
+    {
+        if (_cancellationSource.IsCancellationRequested)
+        {
+            throw new ObjectDisposedException(nameof(Session));
+        }
             
+        var stream = _client.GetStream();
+        return stream.WriteAsync(payload);
+    }
+
+    private async ValueTask HandlerPacketsInternalAsync()
+    {
+        await HandleAuthenticationInternalAsync();
+
+        while (!_cancellationSource.IsCancellationRequested)
+        {
+            Debug.Assert(_isAuthenticated);
+
             var stream = _client.GetStream();
-            return stream.WriteAsync(payload);
-        }
+                
+            var packet = await Packet.ReadFromStreamAsync(stream, _cancellationSource.Token);
 
-        private async ValueTask HandlerPacketsInternalAsync()
-        {
-            await HandleAuthenticationInternalAsync();
-
-            while (!_cancellationSource.IsCancellationRequested)
+            if (packet.IsMalformed)
             {
-                Debug.Assert(_isAuthenticated);
+                _logger.LogInformation($"Malformed packet was received from session with id: {_id}");
+                await CloseAsync();
+                return;
+            }
+                
+            _logger.LogInformation($"Received payload with size {packet.Payload.Length} from session: {_id}");
+                
+            OnPacketReceived?.Invoke(this, packet);
+        }
+    }
 
-                var stream = _client.GetStream();
+    private async ValueTask HandleAuthenticationInternalAsync()
+    {
+        var config = ConfigurationProvider.GetTcpConfig();
+            
+        if (config.EnableAuthentication)
+        {
+            var stream = _client.GetStream();
                 
-                var packet = await Packet.ReadFromStreamAsync(stream, _cancellationSource.Token);
+            using var packet = await Packet.ReadFromStreamAsync(stream, _cancellationSource.Token);
 
-                if (packet.IsMalformed)
-                {
-                    _logger.LogInformation($"Malformed packet was received from session with id: {_id}");
-                    await CloseAsync();
-                    return;
-                }
-                
-                _logger.LogInformation($"Received payload with size {packet.Payload.Length} from session: {_id}");
-                
-                OnPacketReceived?.Invoke(this, packet);
+            if (packet.IsMalformed)
+            {
+                _logger.LogWarning($"Malformed credential was provided for session with id: {_id}");
+                await CloseAsync();
+                return;
+            }
+
+            var credentials = Encoding.UTF8.GetString(packet.Payload.Memory.Span);
+
+            var validator = config.SessionCredentialValidator;
+
+            var credentialIsValid = await validator.ValidateCredential(credentials);
+
+            if (!credentialIsValid)
+            {
+                _logger.LogWarning($"Invalid credential was provided for session with id: {_id}");
+                await CloseAsync();
+                return;
             }
         }
 
-        private async ValueTask HandleAuthenticationInternalAsync()
-        {
-            var config = ConfigurationProvider.GetTcpConfig();
+        _logger.LogInformation($"Authentication completed for session with id: {_id}");
             
-            if (config.EnableAuthentication)
-            {
-                var stream = _client.GetStream();
-                
-                using var packet = await Packet.ReadFromStreamAsync(stream, _cancellationSource.Token);
+        _isAuthenticated = true;
+    }
 
-                if (packet.IsMalformed)
-                {
-                    _logger.LogWarning($"Malformed credential was provided for session with id: {_id}");
-                    await CloseAsync();
-                    return;
-                }
-
-                var credentials = Encoding.UTF8.GetString(packet.Payload.Memory.Span);
-
-                var validator = config.SessionCredentialValidator;
-
-                var credentialIsValid = await validator.ValidateCredential(credentials);
-
-                if (!credentialIsValid)
-                {
-                    _logger.LogWarning($"Invalid credential was provided for session with id: {_id}");
-                    await CloseAsync();
-                    return;
-                }
-            }
-
-            _logger.LogInformation($"Authentication completed for session with id: {_id}");
+    private async ValueTask CloseAsync()
+    {
+        await DisposeAsync();
             
-            _isAuthenticated = true;
-        }
-
-        private async ValueTask CloseAsync()
-        {
-            await DisposeAsync();
-            
-            OnClosed?.Invoke(this);
-        }
+        OnClosed?.Invoke(this);
     }
 }

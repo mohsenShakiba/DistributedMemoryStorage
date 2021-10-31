@@ -6,46 +6,42 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dms.Common.Binary;
 
-namespace Dms.Tcp
+namespace Dms.Tcp;
+
+public class Packet: IDisposable
 {
-    public class Packet: IDisposable
+    public DisposableBuffer Payload { get; init; }
+    public bool IsMalformed { get; init; }
+    
+    public static async ValueTask<Packet> ReadFromStreamAsync(Stream stream, CancellationToken cancellationToken)
     {
-        public DisposableBuffer Payload { get; init; }
-        public bool IsMalformed { get; init; }
-        
-        public Memory<byte> Type => Payload.Memory.Slice(0, 6);
-        public Guid Id => new Guid(Payload.Memory.Slice(7, 17).Span);
+        using var headerDisposableBuffer = new DisposableBuffer(4);
 
-        public static async ValueTask<Packet> ReadFromStreamAsync(Stream stream, CancellationToken cancellationToken)
+        // read 4 bytes from payload size
+        var headerSizeReceived = await stream.ReadAsync(headerDisposableBuffer.Memory, cancellationToken);
+
+        // if header value is malformed return a malformed packet
+        if (headerSizeReceived != 4)
         {
-            using var headerDisposableBuffer = new DisposableBuffer(4);
+            return new Packet { IsMalformed = true };
+        }
 
-            // read 4 bytes from payload size
-            var headerSizeReceived = await stream.ReadAsync(headerDisposableBuffer.Memory, cancellationToken);
-
-            // if header value is malformed return a malformed packet
-            if (headerSizeReceived != 4)
-            {
-                return new Packet { IsMalformed = true };
-            }
-
-            // convert header to int32
-            var payloadSize = BitConverter.ToInt32(headerDisposableBuffer.Memory.Span);
+        // convert header to int32
+        var payloadSize = BitConverter.ToInt32(headerDisposableBuffer.Memory.Span);
             
-            var payloadDisposableBuffer = new DisposableBuffer(payloadSize);
+        var payloadDisposableBuffer = new DisposableBuffer(payloadSize);
 
-            // read exactly payload length from stream
-            await stream.ReadAsync(payloadDisposableBuffer.Memory, cancellationToken);
+        // read exactly payload length from stream
+        await stream.ReadAsync(payloadDisposableBuffer.Memory, cancellationToken);
 
-            return new Packet
-            {
-                Payload = payloadDisposableBuffer
-            };
-        }
-
-        public void Dispose()
+        return new Packet
         {
-            Payload?.Dispose();
-        }
+            Payload = payloadDisposableBuffer
+        };
+    }
+
+    public void Dispose()
+    {
+        Payload?.Dispose();
     }
 }

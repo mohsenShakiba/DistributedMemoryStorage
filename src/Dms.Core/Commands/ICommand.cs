@@ -1,11 +1,11 @@
 using System.Threading.Tasks;
 using Dms.Common.Binary;
+using Dms.Storage;
 using Dms.Tcp;
 
-namespace Dms.Core.Commands
+namespace Dms.Core.Commands;
+
+public interface ICommand
 {
-    public interface ICommand
-    {
-        ValueTask HandleAsync(BinaryRequestReader input, Session session);
-    }
+    ValueTask HandleAsync(CommandRequestContext ctx);
 }

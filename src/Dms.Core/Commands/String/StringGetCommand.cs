@@ -1,36 +1,35 @@
+using System;
 using System.Threading.Tasks;
 using Dms.Common.Binary;
-using Dms.Core.Types;
 using Dms.Storage;
 using Dms.Tcp;
 
-namespace Dms.Core.Commands.String
+namespace Dms.Core.Commands.String;
+
+public class StringGetCommand: ICommand
 {
-    public class StringGetCommand: ICommand
+        
+    public async ValueTask HandleAsync(CommandRequestContext ctx)
     {
-        private readonly IStorage _storage;
+        var key = ctx.RequestReader.ReadNextString();
 
-        public KeyType Key { get; init; }
-
-        public StringGetCommand(IStorage storage)
+        if (key is null)
         {
-            _storage = storage;
+            ctx.WriteNack(ErrorCodes.InvalidInput);
+            return;
         }
-        
-        
-        public async ValueTask HandleAsync(BinaryRequestReader input, Session session)
+
+        var data = await ctx.Storage.ReadAsync(key);
+
+        if (data.IsEmpty)
         {
-            var key = input.ReadNextString();
-
-            var data = await _storage.ReadAsync(key);
-
-            var responseWriter = new BinaryResponseWriter();
-            
-            responseWriter.WriteType(ResponseTypes.StringGet);
-            responseWriter.WriteGuid(input.Id);
-            responseWriter.WriteMemory(data);
-
-            await session.SendAsync(responseWriter.Buffer);
+            ctx.WriteNack(ErrorCodes.KeyNotFound);
+        }
+        else
+        {
+            ctx.ResponseWriter.WriteType(ResponseTypes.StringGet);
+            ctx.ResponseWriter.WriteGuid(ctx.RequestReader.Id);
+            ctx.ResponseWriter.WriteMemory(data);
         }
     }
 }

@@ -1,15 +1,14 @@
 using System;
 
-namespace Tcp.Tests.Packets
-{
-    public class InvalidPacket
-    {
+namespace Tcp.Tests.Packets;
 
-        public byte[] Buffer;
+public class InvalidPacket
+{
+
+    public byte[] Buffer;
         
-        public InvalidPacket()
-        {
-            Buffer = new Byte[3];
-        }
+    public InvalidPacket()
+    {
+        Buffer = new Byte[3];
     }
 }

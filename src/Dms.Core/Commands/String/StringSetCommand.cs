@@ -1,35 +1,40 @@
+using System;
 using System.Threading.Tasks;
 using Dms.Common.Binary;
 using Dms.Storage;
 using Dms.Tcp;
 
-namespace Dms.Core.Commands.String
+namespace Dms.Core.Commands.String;
+
+public class StringSetCommand: ICommand
 {
-    public class StringSetCommand: ICommand
+    public async ValueTask HandleAsync(CommandRequestContext ctx)
     {
-        private readonly IStorage _storage;
-
-        public StringSetCommand(IStorage storage)
+        var key = ctx.RequestReader.ReadNextString();
+        var validUntil = ctx.RequestReader.ReadNextDateTime();
+        var value = ctx.RequestReader.ReadNextBinary();
+        
+        if (key is null)
         {
-            _storage = storage;
+            ctx.WriteNack(ErrorCodes.InvalidInput);
+            return;
         }
         
-        public async ValueTask HandleAsync(BinaryRequestReader input, Session session)
+        if (validUntil is null)
         {
-            var key = input.ReadNextString();
-            var validUntil = input.ReadNextDateTime();
-            var value = input.ReadNextBinary();
-            
-            await _storage.WriteAsync(key, value);
-
-            var responseWriter = new BinaryResponseWriter();
-            
-            responseWriter.WriteType(ResponseTypes.Ack);
-            responseWriter.WriteGuid(input.Id);
-
-            await session.SendAsync(responseWriter.Buffer);
+            ctx.WriteNack(ErrorCodes.InvalidInput);
+            return;
         }
         
+        if (value.IsEmpty)
+        {
+            ctx.WriteNack(ErrorCodes.InvalidInput);
+            return;
+        }
+        
+        await ctx.Storage.WriteAsync(key, value);
+
+        ctx.WriteAck();        
     }
-
+        
 }

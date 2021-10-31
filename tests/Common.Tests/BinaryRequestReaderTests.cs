@@ -26,7 +26,7 @@ public class BinaryRequestReaderTests
         var disposableBuffer = CreateBufferWithIdAndType(null, (short)type);
         var binaryRequestReader = new BinaryRequestReader(disposableBuffer);
         
-        Assert.Equal(type, binaryRequestReader.Type);
+        Assert.Equal((short)type, binaryRequestReader.Type);
     }
 
     [Fact]
